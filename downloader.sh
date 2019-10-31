@@ -42,6 +42,25 @@ getDownloadUrl() {
     echo "Found URL for task ${task}: ${url}"
 }
 
+downloadUrl() {
+    url=$1
+    if [ -z "${url}" ]; then
+        echo "Error! No url for download"
+        return
+    fi
+
+    id=`echo "${url}" | tr "?&" "\n\n" | grep "^v=" | cut -d "=" -f 2`
+    logFile="${id}".log
+    youtube-dl --proxy http://proxy.vmware.com:3128 -f "${format:-22}" --write-thumbnail --write-sub --embed-subs --sub-lang en_US,en_US,en "${url}" > "${logFile}"
+    thumbnail=`cat "${logFile}" | sed -n 's/.*Writing\ thumbnail.*:\ \(.*\)/\1/p'`
+    video=`cat "${logFile}" | sed -n 's/.*Destination:\ \(.*\)/\1/p'`
+    extension="${video##*.}"
+    tempFile="${id}"."${extension}"
+    /bin/rm -rf "${logFile}"
+    ffmpeg -i "${video}" -i "${thumbnail}" -map 0 -map 1 -c copy -c:v:1 png -disposition:v:1 attached_pic -y "${tempFile}"; /bin/rm -rf "${thumbnail}"; mv "${tempFile}" "${video}"
+
+}
+
 downloadTask() {
     task=$1
     if [ -z "${task}" ]; then
@@ -55,29 +74,35 @@ downloadTask() {
     fi
     echo "Ready to download ${url}"
 
-    id=`echo "${url}" | tr "?&" "\n\n" | grep "^v=" | cut -d "=" -f 2`
-    logFile="${id}".log
-    youtube-dl --proxy http://proxy.vmware.com:3128 -f "${format:-22}" --write-thumbnail --write-sub --embed-subs --sub-lang en_US,en_US,en "${url}" > "${logFile}"
-    thumbnail=`cat "${logFile}" | sed -n 's/.*Writing\ thumbnail.*:\ \(.*\)/\1/p'`
-    video=`cat "${logFile}" | sed -n 's/.*Destination:\ \(.*\)/\1/p'`
-    extension="${video##*.}"
-    tempFile="${id}"."${extension}"
-    echo "${tempFile}"
-    /bin/rm -rf "${logFile}"
-    ffmpeg -i "${video}" -i "${thumbnail}" -map 0 -map 1 -c copy -c:v:1 png -disposition:v:1 attached_pic -y "${tempFile}"; /bin/rm -rf "${thumbnail}"; mv "${tempFile}" "${video}"
+    downloadUrl "${url}"
 
     echo "Successfully downloaded ${url}"
     removeTask "${task}"
 }
 
-while true
-do
-    task=$(getTask)
-    if [ ! -z "${task}" ]; then
-        echo "Found taks to download ${task}"
-        downloadTask "${task}"
-    else
-        echo "No task to download"
-        exit 0
-    fi
-done
+if [ $# -ne 0 ] && [ $# -ne 1 ];
+then
+    echo "Bad Parameter"
+    echo "Supported commands: $0 [url]"
+    exit
+fi
+
+if [ $# -eq 0 ]; then
+    while true
+    do
+        task=$(getTask)
+        if [ ! -z "${task}" ]; then
+            echo "Found taks to download ${task}"
+            downloadTask "${task}"
+        else
+            echo "No task to download"
+            exit 0
+        fi
+    done
+fi
+
+if [ $# -eq 1 ]; then
+    url=$1
+    echo "Downloading ${url}..."
+    downloadUrl "${url}"
+fi
