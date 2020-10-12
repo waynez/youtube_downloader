@@ -1,4 +1,8 @@
+#!/bin/sh
+export PATH=$PATH:/usr/local/bin
+
 database=waitinglist
+destFolder=/Users/zhengw/Downloads/
 
 getTask() {
     cat "${database}" | while read line
@@ -51,13 +55,17 @@ downloadUrl() {
 
     id=`echo "${url}" | tr "?&" "\n\n" | grep "^v=" | cut -d "=" -f 2`
     logFile="${id}".log
-    youtube-dl --proxy http://proxy.vmware.com:3128 -f "${format:-22}" --write-thumbnail --write-sub --embed-subs --sub-lang en_US,en_US,en "${url}" > "${logFile}"
+    echo "Downloading video ..."
+    youtube-dl --proxy http://proxy.vmware.com:3128 -f "${format:-22}/best" --write-thumbnail --write-sub --embed-subs --sub-lang en "${url}" > "${logFile}"
+    echo "Download completed"
     thumbnail=`cat "${logFile}" | sed -n 's/.*Writing\ thumbnail.*:\ \(.*\)/\1/p'`
     video=`cat "${logFile}" | sed -n 's/.*Destination:\ \(.*\)/\1/p'`
     extension="${video##*.}"
     tempFile="${id}"."${extension}"
     /bin/rm -rf "${logFile}"
     ffmpeg -i "${video}" -i "${thumbnail}" -map 0 -map 1 -c copy -c:v:1 png -disposition:v:1 attached_pic -y "${tempFile}"; /bin/rm -rf "${thumbnail}"; mv "${tempFile}" "${video}"
+    echo "Moving file to ... ${destFolder}"
+    mv "${video}" "${destFolder}"
 
 }
 
